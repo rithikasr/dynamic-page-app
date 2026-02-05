@@ -10,6 +10,10 @@ import ExploreProducts from "./pages/ExploreProducts";
 import AboutUs from "./pages/AboutUs";
 import ContactUs from "./pages/ContactUs";
 import NotFound from "./pages/NotFound";
+import AdminRoute from "./routes/AdminRoute";
+import AdminOrders from "./pages/admin/Orders";
+import AdminAuthGuard from "./components/admin/AdminAuthGuard";
+
 
 const queryClient = new QueryClient();
 
@@ -26,6 +30,16 @@ const App = () => (
             <Route path="/explore" element={<ExploreProducts />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/contact" element={<ContactUs />} />
+              {/*  Admin only */}
+              <Route path="/admin/orders" element={<AdminAuthGuard/>} />
+  {/* <Route
+    path="/admin/orders"
+    element={
+      <AdminRoute>
+        <AdminOrders />
+      </AdminRoute>
+    }
+  /> */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </LanguageProvider>
