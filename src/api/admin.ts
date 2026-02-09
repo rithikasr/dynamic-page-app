@@ -1,23 +1,54 @@
 export const fetchOrders = async () => {
-  const res = await fetch(
-    "https://z0vx5pwf-3000.inc1.devtunnels.ms/admin/orders",
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json"
+  try {
+    const token = localStorage.getItem("token"); // get token from storage
+
+    const res = await fetch(
+      "https://z0vx5pwf-3000.inc1.devtunnels.ms/admin/orders",
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`, // ⬅️ add token here
+        },
       }
-    }
-  );
+    );
 
-  const data = await res.json();
+    const data = await res.json();
 
-  console.log("RAW API RESPONSE:", data);        // debug
-  console.log("ORDERS ARRAY:", data.orders);     // debug
+    console.log("RAW API RESPONSE:", data);
+    console.log("ORDERS ARRAY:", data.orders);
 
-  if (!data.orders) return [];                   // safety fallback
+    if (!data.orders) return [];
 
-  return data.orders;
+    return data.orders;
+  } catch (err) {
+    console.error("Error fetching orders", err);
+    return [];
+  }
 };
+
+
+
+// export const fetchOrders = async () => {
+//   const res = await fetch(
+//     "https://z0vx5pwf-3000.inc1.devtunnels.ms/admin/orders",
+//     {
+//       method: "GET",
+//       headers: {
+//         "Content-Type": "application/json"
+//       }
+//     }
+//   );
+
+//   const data = await res.json();
+
+//   console.log("RAW API RESPONSE:", data);        // debug
+//   console.log("ORDERS ARRAY:", data.orders);     // debug
+
+//   if (!data.orders) return [];                   // safety fallback
+
+//   return data.orders;
+// };
 
 
 // export const fetchOrders = async () => {

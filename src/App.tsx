@@ -13,6 +13,9 @@ import NotFound from "./pages/NotFound";
 import AdminRoute from "./routes/AdminRoute";
 import AdminOrders from "./pages/admin/Orders";
 import AdminAuthGuard from "./components/admin/AdminAuthGuard";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import AdminProducts from "./pages/admin/Products";
 
 
 const queryClient = new QueryClient();
@@ -26,12 +29,17 @@ const App = () => (
         <LanguageProvider>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/product/:category" element={<ProductPage />} />
+            <Route path="/login" element={<Login/>} />
+            <Route path="/register" element={<Register/>} />
+             <Route path="/product/:id" element={<ProductPage />} />
+              {/* <Route path="/product/:category" element={<ProductPage />} /> */}
             <Route path="/explore" element={<ExploreProducts />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/contact" element={<ContactUs />} />
               {/*  Admin only */}
               <Route path="/admin/orders" element={<AdminAuthGuard/>} />
+              <Route path="/admin/products" element={<AdminProducts/>} />
+
   {/* <Route
     path="/admin/orders"
     element={

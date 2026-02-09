@@ -5,12 +5,17 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, Search } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState<any[]>([]);
   const [active, setActive] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+
 
   useEffect(() => {
     fetchOrders()
@@ -38,6 +43,13 @@ export default function AdminOrders() {
       <h1 className="text-4xl font-extrabold mb-8 text-[#111827]">
         Your Orders
       </h1>
+      
+  <Button
+    onClick={() => navigate("/admin/products")}
+    className="bg-pink-600 hover:bg-pink-700 text-white rounded-xl px-6 py-2"
+  >
+    Manage Products
+  </Button>
 
       <div className="grid grid-cols-12 gap-6">
         {/* LEFT */}
