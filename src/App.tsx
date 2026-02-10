@@ -16,6 +16,7 @@ import AdminAuthGuard from "./components/admin/AdminAuthGuard";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import AdminProducts from "./pages/admin/Products";
+import MyOrders from "@/pages/orders/MyOrders";
 
 
 const queryClient = new QueryClient();
@@ -36,6 +37,7 @@ const App = () => (
             <Route path="/explore" element={<ExploreProducts />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/contact" element={<ContactUs />} />
+            <Route path="/my-orders" element={<MyOrders />} />
               {/*  Admin only */}
               <Route path="/admin/orders" element={<AdminAuthGuard/>} />
               <Route path="/admin/products" element={<AdminProducts/>} />

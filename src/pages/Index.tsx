@@ -13,8 +13,9 @@ import { useState, useEffect } from "react";
 interface Product {
   id: string;
   name: string;
-  emoji: string;
   price: string;
+   image?: string;
+  stock: number;
 }
 
 const HomeContent = () => {
@@ -39,14 +40,24 @@ useEffect(() => {
       );
 
       const data = await res.json();
-
       const mapped = data.products.map((p: any) => ({
   id: p._id,
   name: p.name,
-  emoji: "📦", // your UI expects an emoji, API doesn't provide one
   price: `From ₹${p.price}`,
   image: p.image,
+  stock: p.stock,
 }));
+
+
+      
+//       const mapped = data.products.map((p: any) => ({
+//   id: p._id,
+//   name: p.name,
+//   emoji: "📦", // your UI expects an emoji, API doesn't provide one
+//   price: `From ₹${p.price}`,
+//   image: p.image,
+//    stock: p.stock,
+// }));
 
       setFeaturedProducts(mapped);
     } catch (err) {
@@ -140,16 +151,60 @@ useEffect(() => {
               {featuredProducts.map((product) => (
                 <Card key={product.id} className="group hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm">
                   <CardContent className="p-6 text-center">
-                    <div className="text-6xl mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <div className="mb-4 overflow-hidden rounded-xl">
+  <img
+    src={product.image || "/placeholder.png"}
+    alt={product.name}
+    className="h-40 w-full object-cover group-hover:scale-105 transition-transform duration-300"
+  />
+</div>
+
+                    {/* <div className="text-6xl mb-4 group-hover:scale-110 transition-transform duration-300">
                       {product.emoji}
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">{product.name}</h3>
+                    </div> */}
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+  {product.name}
+</h3>
+
+<p className="text-primary font-bold mb-1">
+  {product.price}
+</p>
+
+{/* ✅ STOCK DISPLAY */}
+<p
+  className={`text-sm mb-3 font-medium ${
+    product.stock > 0 ? "text-green-600" : "text-red-600"
+  }`}
+>
+  {product.stock > 0
+    ? `${product.stock} left in stock`
+    : "Out of stock"}
+</p>
+
+{/* ✅ BUTTON */}
+<Button
+  size="sm"
+  className={`w-full ${
+    product.stock <= 0 && "opacity-60 cursor-not-allowed"
+  }`}
+  disabled={product.stock <= 0}
+>
+  {product.stock > 0 ? (
+    <Link to={`/product/${product.id}`}>
+      {t("common.startDesigning")}
+    </Link>
+  ) : (
+    "Out of Stock"
+  )}
+</Button>
+
+                    {/* <h3 className="text-xl font-semibold text-gray-900 mb-2">{product.name}</h3>
                     <p className="text-primary font-bold mb-4">{product.price}</p>
                     <Button asChild size="sm" className="w-full">
                       <Link to={`/product/${product.id}`}>
                         {t('common.startDesigning')}
                       </Link>
-                    </Button>
+                    </Button> */}
                   </CardContent>
                 </Card>
               ))}
