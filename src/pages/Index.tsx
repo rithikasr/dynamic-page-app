@@ -107,7 +107,8 @@ useEffect(() => {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button size="lg" asChild>
-                    <Link to="/product/phone-case">
+                    <Link to="/product/:id">
+                    {/* <Link to="/customize-phone-case"> */}
                       {t('hero.cta')}
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
@@ -190,7 +191,10 @@ useEffect(() => {
   disabled={product.stock <= 0}
 >
   {product.stock > 0 ? (
-    <Link to={`/product/${product.id}`}>
+    <Link 
+      to={product.name.toLowerCase().includes('phone case') ? "/customize-phone-case" : `/product/${product.id}`}
+      state={{ product: product }}
+    >
       {t("common.startDesigning")}
     </Link>
   ) : (
@@ -279,7 +283,7 @@ useEffect(() => {
               the perfect presents for birthdays, anniversaries, and special occasions.
             </p>
             <Button size="lg" asChild>
-              <Link to="/product/phone-case">
+              <Link to="/customize-phone-case">
                 {t('common.beginDesigning')}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>
