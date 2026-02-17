@@ -7,23 +7,73 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ArrowRight, Sparkles, Heart, Star } from "lucide-react";
 import Stack from "@/components/Stack"; // TSX Stack component
+import { useState, useEffect } from "react";
+
 
 interface Product {
   id: string;
   name: string;
-  emoji: string;
   price: string;
+   image?: string;
+  stock: number;
 }
 
 const HomeContent = () => {
   const { t } = useLanguage();
 
-  const featuredProducts: Product[] = [
-    { id: 'phone-case', name: t('products.phoneCase'), emoji: '📱', price: 'From $19.99' },
-    { id: 'mug', name: t('products.mug'), emoji: '☕', price: 'From $14.99' },
-    { id: 'bottle', name: t('products.bottle'), emoji: '🍶', price: 'From $24.99' },
-    { id: 'tshirt', name: t('products.tshirt'), emoji: '👕', price: 'From $29.99' },
-  ];
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
+
+useEffect(() => {
+  const fetchProducts = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const res = await fetch(
+        "https://z0vx5pwf-3000.inc1.devtunnels.ms/api/products",
+        {
+          headers: {
+            "Content-Type": "application/json",
+            // Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ODcxZjAzMTgxMmEzMzFmMmY3MTAzZiIsImVtYWlsIjoiaWFtcml5YXNoeWRlckBnbWFpbC5jb20iLCJpYXQiOjE3NzA2MzgyMDIsImV4cCI6MTc3MTI0MzAwMn0.ZGYxvF1wnrBL3FXxJrn4QNzEF1ZI7DTFs3ULbMMg9PU`,
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const data = await res.json();
+      const mapped = data.products.map((p: any) => ({
+  id: p._id,
+  name: p.name,
+  price: `From ₹${p.price}`,
+  image: p.image,
+  stock: p.stock,
+}));
+
+
+      
+//       const mapped = data.products.map((p: any) => ({
+//   id: p._id,
+//   name: p.name,
+//   emoji: "📦", // your UI expects an emoji, API doesn't provide one
+//   price: `From ₹${p.price}`,
+//   image: p.image,
+//    stock: p.stock,
+// }));
+
+      setFeaturedProducts(mapped);
+    } catch (err) {
+      console.log("Error fetching products", err);
+    }
+  };
+
+  fetchProducts();
+}, []);
+
+  // const featuredProducts: Product[] = [
+  //   { id: 'phone-case', name: t('products.phoneCase'), emoji: '📱', price: 'From $19.99' },
+  //   { id: 'mug', name: t('products.mug'), emoji: '☕', price: 'From $14.99' },
+  //   { id: 'bottle', name: t('products.bottle'), emoji: '🍶', price: 'From $24.99' },
+  //   { id: 'tshirt', name: t('products.tshirt'), emoji: '👕', price: 'From $29.99' },
+  // ];
 
   // Hero images for draggable Stack
   const heroImages = [
@@ -57,7 +107,8 @@ const HomeContent = () => {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-4">
                   <Button size="lg" asChild>
-                    <Link to="/product/phone-case">
+                    <Link to="/product/:id">
+                    {/* <Link to="/customize-phone-case"> */}
                       {t('hero.cta')}
                       <ArrowRight className="ml-2 h-5 w-5" />
                     </Link>
@@ -101,16 +152,63 @@ const HomeContent = () => {
               {featuredProducts.map((product) => (
                 <Card key={product.id} className="group hover:shadow-xl transition-all duration-300 border-0 bg-white/80 backdrop-blur-sm">
                   <CardContent className="p-6 text-center">
-                    <div className="text-6xl mb-4 group-hover:scale-110 transition-transform duration-300">
+                    <div className="mb-4 overflow-hidden rounded-xl">
+  <img
+    src={product.image || "/placeholder.png"}
+    alt={product.name}
+    className="h-40 w-full object-cover group-hover:scale-105 transition-transform duration-300"
+  />
+</div>
+
+                    {/* <div className="text-6xl mb-4 group-hover:scale-110 transition-transform duration-300">
                       {product.emoji}
-                    </div>
-                    <h3 className="text-xl font-semibold text-gray-900 mb-2">{product.name}</h3>
+                    </div> */}
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+  {product.name}
+</h3>
+
+<p className="text-primary font-bold mb-1">
+  {product.price}
+</p>
+
+{/* ✅ STOCK DISPLAY */}
+<p
+  className={`text-sm mb-3 font-medium ${
+    product.stock > 0 ? "text-green-600" : "text-red-600"
+  }`}
+>
+  {product.stock > 0
+    ? `${product.stock} left in stock`
+    : "Out of stock"}
+</p>
+
+{/* ✅ BUTTON */}
+<Button
+  size="sm"
+  className={`w-full ${
+    product.stock <= 0 && "opacity-60 cursor-not-allowed"
+  }`}
+  disabled={product.stock <= 0}
+>
+  {product.stock > 0 ? (
+    <Link 
+      to={product.name.toLowerCase().includes('phone case') ? "/customize-phone-case" : `/product/${product.id}`}
+      state={{ product: product }}
+    >
+      {t("common.startDesigning")}
+    </Link>
+  ) : (
+    "Out of Stock"
+  )}
+</Button>
+
+                    {/* <h3 className="text-xl font-semibold text-gray-900 mb-2">{product.name}</h3>
                     <p className="text-primary font-bold mb-4">{product.price}</p>
                     <Button asChild size="sm" className="w-full">
                       <Link to={`/product/${product.id}`}>
                         {t('common.startDesigning')}
                       </Link>
-                    </Button>
+                    </Button> */}
                   </CardContent>
                 </Card>
               ))}
@@ -185,7 +283,7 @@ const HomeContent = () => {
               the perfect presents for birthdays, anniversaries, and special occasions.
             </p>
             <Button size="lg" asChild>
-              <Link to="/product/phone-case">
+              <Link to="/customize-phone-case">
                 {t('common.beginDesigning')}
                 <ArrowRight className="ml-2 h-5 w-5" />
               </Link>

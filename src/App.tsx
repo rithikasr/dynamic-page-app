@@ -10,6 +10,16 @@ import ExploreProducts from "./pages/ExploreProducts";
 import AboutUs from "./pages/AboutUs";
 import ContactUs from "./pages/ContactUs";
 import NotFound from "./pages/NotFound";
+import AdminRoute from "./routes/AdminRoute";
+import AdminOrders from "./pages/admin/Orders";
+import AdminAuthGuard from "./components/admin/AdminAuthGuard";
+import Login from "@/pages/Login";
+import Register from "@/pages/Register";
+import AdminProducts from "./pages/admin/Products";
+import MyOrders from "@/pages/orders/MyOrders";
+import PhoneCaseCustomizer from "@/pages/PhoneCaseCustomizer";
+import TShirtCustomizer from "@/pages/TShirtCustomizer";
+
 
 const queryClient = new QueryClient();
 
@@ -22,10 +32,28 @@ const App = () => (
         <LanguageProvider>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/product/:category" element={<ProductPage />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/product/:id" element={<ProductPage />} />
+            {/* <Route path="/product/:category" element={<ProductPage />} /> */}
             <Route path="/explore" element={<ExploreProducts />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/contact" element={<ContactUs />} />
+            <Route path="/my-orders" element={<MyOrders />} />
+            <Route path="/customize-phone-case" element={<PhoneCaseCustomizer />} />
+            <Route path="/customize-t-shirt" element={<TShirtCustomizer />} />
+            {/*  Admin only */}
+            <Route path="/admin/orders" element={<AdminAuthGuard />} />
+            <Route path="/admin/products" element={<AdminProducts />} />
+
+            {/* <Route
+    path="/admin/orders"
+    element={
+      <AdminRoute>
+        <AdminOrders />
+      </AdminRoute>
+    }
+  /> */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </LanguageProvider>
