@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,6 +22,7 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import Moveable from 'react-moveable';
 import { fetchProducts } from '@/api/products';
+import { API_ENDPOINTS, getAuthHeaders, STORAGE_KEYS } from '@/constants/apiConstants';
 
 // T-Shirt sizes
 const SIZES = ['S', 'M', 'L', 'XL', 'XXL', '3XL'];
@@ -85,6 +86,8 @@ interface DesignElement {
 
 export default function TShirtCustomizer() {
     const { t } = useLanguage();
+    const navigate = useNavigate();
+    const location = useLocation();
 
     // T-shirt state
     const [shirtType, setShirtType] = useState<string>('half-sleeve');
@@ -95,6 +98,16 @@ export default function TShirtCustomizer() {
     const [moveableTarget, setMoveableTarget] = useState<HTMLElement | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [targetProduct, setTargetProduct] = useState<any>(null);
+
+    // Dynamic pricing from backend (fallback to TSHIRT_TYPES defaults)
+    const [tshirtPricing, setTshirtPricing] = useState<Record<string, number>>({
+        'half-sleeve': 599,
+        'v-neck': 649,
+        'polo': 799,
+        'full-sleeve': 699,
+        'oversized': 749,
+        'sweatshirt': 999
+    });
 
     // Text editor state
     const [textInput, setTextInput] = useState('');
@@ -261,15 +274,77 @@ export default function TShirtCustomizer() {
         }
     }, [selectedElement, designElements]);
 
-    const location = useLocation();
 
-    // Fetch product for checkout
+    const { productId } = useParams();
+
+    // Fetch dynamic pricing from backend
+    useEffect(() => {
+        const fetchPricing = async () => {
+            try {
+                const res = await fetch(API_ENDPOINTS.PRICING.T_SHIRT);
+                const data = await res.json();
+                if (data.success && data.pricing && data.pricing.tshirtTypes) {
+                    const priceMap: Record<string, number> = {};
+                    data.pricing.tshirtTypes.forEach((type: any) => {
+                        priceMap[type.id] = type.price;
+                    });
+                    setTshirtPricing(priceMap);
+                }
+            } catch (err) {
+                console.error('Failed to fetch t-shirt pricing:', err);
+                // Keep default prices
+            }
+        };
+        fetchPricing();
+    }, []);
+
+
+
+    // Fetch product for checkout or restore design
     useEffect(() => {
         const loadProduct = async () => {
-            // Check if product was passed via navigation state
+            // 0. Check for saved design (restore strategy)
+            const savedDesignJSON = localStorage.getItem('TEMP_TSHIRT_DESIGN');
+            if (savedDesignJSON) {
+                try {
+                    const parsed = JSON.parse(savedDesignJSON);
+
+                    // Restore all state
+                    if (parsed.shirtType) setShirtType(parsed.shirtType);
+                    if (parsed.size) setSize(parsed.size);
+                    if (parsed.color) setColor(parsed.color);
+                    if (parsed.designElements) setDesignElements(parsed.designElements);
+                    if (parsed.targetProduct) setTargetProduct(parsed.targetProduct);
+
+                    // Clear the temporary state
+                    localStorage.removeItem('TEMP_TSHIRT_DESIGN');
+                    return; // Stop here, use restored data
+                } catch (e) {
+                    console.error("Error parsing saved design", e);
+                    // continue to normal load if error
+                }
+            }
+
+            // 1. Check if product was passed via navigation state
             if (location.state?.product) {
                 setTargetProduct(location.state.product);
                 return;
+            }
+
+            // 2. Check if productId is in URL
+            if (productId) {
+                try {
+                    const res = await fetch(API_ENDPOINTS.PRODUCTS.BY_ID(productId), {
+                        headers: getAuthHeaders(),
+                    });
+                    const data = await res.json();
+                    if (data.product) {
+                        setTargetProduct(data.product);
+                        return;
+                    }
+                } catch (err) {
+                    console.error("Failed to load product by ID", err);
+                }
             }
 
             try {
@@ -303,10 +378,27 @@ export default function TShirtCustomizer() {
             }
         };
         loadProduct();
-    }, [location.state]);
+    }, [location.state, productId]);
 
 
     const handleBuy = async () => {
+        // Check if user is logged in
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (!token) {
+            // Save state before redirecting
+            const designState = {
+                shirtType,
+                size,
+                color,
+                designElements,
+                targetProduct
+            };
+            localStorage.setItem('TEMP_TSHIRT_DESIGN', JSON.stringify(designState));
+
+            navigate('/login', { state: { from: location } });
+            return;
+        }
+
         if (!targetProduct) {
             alert("Product info is loading...");
             return;
@@ -314,16 +406,36 @@ export default function TShirtCustomizer() {
 
         const selectedType = TSHIRT_TYPES.find(t => t.id === shirtType);
 
+        // Use dynamic pricing from backend, fallback to product price or default
+        let rawPrice = tshirtPricing[shirtType] || targetProduct?.price || 599;
+        let finalPrice = 599; // Default fallback
+
+        if (typeof rawPrice === 'number') {
+            finalPrice = rawPrice;
+        } else if (typeof rawPrice === 'string') {
+            const parsed = parseFloat(rawPrice.replace(/[^0-9.]/g, ''));
+            if (!isNaN(parsed) && parsed > 0) {
+                finalPrice = parsed;
+            }
+        }
+
+        const price = finalPrice;
+
+        console.log('Creating checkout session with:', {
+            productId: targetProduct._id || targetProduct.id,
+            finalPrice,
+            shirtType: selectedType?.name,
+            size,
+            color
+        });
 
         try {
-            const res = await fetch("https://z0vx5pwf-3000.inc1.devtunnels.ms/api/payment/create-checkout-session", {
+            const res = await fetch(API_ENDPOINTS.PAYMENT.CREATE_CHECKOUT_SESSION, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     productId: targetProduct._id || targetProduct.id,
+                    price: price, // Pass the selected t-shirt type price
                     metadata: {
                         shirtType: selectedType?.name,
                         size,
@@ -335,14 +447,22 @@ export default function TShirtCustomizer() {
 
             const data = await res.json();
 
+            // Check if response is not OK (4xx or 5xx)
+            if (!res.ok) {
+                console.error('Checkout failed:', data);
+                alert(`Checkout failed: ${data.message || data.error || 'Unknown error'}`);
+                return;
+            }
+
             if (data.url) {
                 window.location.href = data.url;
             } else {
-                alert("Failed to create checkout session");
+                console.error('No checkout URL in response:', data);
+                alert("Failed to create checkout session - no URL returned");
             }
         } catch (error) {
             console.error("Checkout error:", error);
-            alert("Something went wrong");
+            alert(`Something went wrong: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
 
@@ -394,12 +514,12 @@ export default function TShirtCustomizer() {
                                                     key={type.id}
                                                     onClick={() => setShirtType(type.id)}
                                                     className={`cursor-pointer border-2 rounded-lg p-2 text-sm transition-all flex flex-col justify-between ${shirtType === type.id
-                                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                                                            : 'border-gray-200 hover:border-indigo-300'
+                                                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                                                        : 'border-gray-200 hover:border-indigo-300'
                                                         }`}
                                                 >
                                                     <span className="font-semibold">{type.name}</span>
-                                                    <span className="text-xs text-gray-500">₹{type.price}</span>
+                                                    <span className="text-xs text-gray-500">₹{tshirtPricing[type.id] || type.price}</span>
                                                     {shirtType === type.id && <Check className="h-4 w-4 text-indigo-600 self-end mt-1" />}
                                                 </div>
                                             ))}
@@ -819,7 +939,7 @@ export default function TShirtCustomizer() {
                             <div className="flex justify-between items-center border-t pt-3">
                                 <span className="font-semibold text-gray-700">Price:</span>
                                 <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-cyan-600 bg-clip-text text-transparent">
-                                    ₹{selectedTypeInfo?.price || targetProduct?.price || 599}
+                                    ₹{tshirtPricing[shirtType] || targetProduct?.price || 599}
                                 </span>
                             </div>
                         </div>

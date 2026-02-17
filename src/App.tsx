@@ -19,6 +19,8 @@ import AdminProducts from "./pages/admin/Products";
 import MyOrders from "@/pages/orders/MyOrders";
 import PhoneCaseCustomizer from "@/pages/PhoneCaseCustomizer";
 import TShirtCustomizer from "@/pages/TShirtCustomizer";
+import PricingManagement from "@/pages/admin/PricingManagement";
+import ForgotPassword from "./pages/ForgotPassword";
 
 
 const queryClient = new QueryClient();
@@ -34,17 +36,21 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/product/:id" element={<ProductPage />} />
             {/* <Route path="/product/:category" element={<ProductPage />} /> */}
             <Route path="/explore" element={<ExploreProducts />} />
             <Route path="/about" element={<AboutUs />} />
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/my-orders" element={<MyOrders />} />
+            <Route path="/customize-phone-case/:productId" element={<PhoneCaseCustomizer />} />
             <Route path="/customize-phone-case" element={<PhoneCaseCustomizer />} />
+            <Route path="/customize-t-shirt/:productId" element={<TShirtCustomizer />} />
             <Route path="/customize-t-shirt" element={<TShirtCustomizer />} />
             {/*  Admin only */}
             <Route path="/admin/orders" element={<AdminAuthGuard />} />
             <Route path="/admin/products" element={<AdminProducts />} />
+            <Route path="/admin/pricing" element={<PricingManagement />} />
 
             {/* <Route
     path="/admin/orders"

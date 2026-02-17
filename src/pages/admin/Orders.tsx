@@ -43,13 +43,13 @@ export default function AdminOrders() {
       <h1 className="text-4xl font-extrabold mb-8 text-[#111827]">
         Your Orders
       </h1>
-      
-  <Button
-    onClick={() => navigate("/admin/products")}
-    className="bg-pink-600 hover:bg-pink-700 text-white rounded-xl px-6 py-2"
-  >
-    Manage Products
-  </Button>
+
+      <Button
+        onClick={() => navigate("/admin/products")}
+        className="bg-pink-600 hover:bg-pink-700 text-white rounded-xl px-6 py-2"
+      >
+        Manage Products
+      </Button>
 
       <div className="grid grid-cols-12 gap-6">
         {/* LEFT */}
@@ -71,11 +71,10 @@ export default function AdminOrders() {
                   <div
                     key={order._id}
                     onClick={() => setActive(order)}
-                    className={`p-4 rounded-2xl cursor-pointer transition border-2 ${
-                      active?._id === order._id
+                    className={`p-4 rounded-2xl cursor-pointer transition border-2 ${active?._id === order._id
                         ? "border-pink-500 bg-[#FDF2F8]"
                         : "border-transparent hover:bg-pink-50"
-                    }`}
+                      }`}
                   >
                     <p className="font-bold text-pink-600">
                       #{order._id.slice(-6)}
@@ -378,7 +377,7 @@ export default function AdminOrders() {
 // //               {/* Status Badge */}
 // //               <span
 // //                 className={`
-// //                   px-3 py-1 rounded-full text-sm font-semibold 
+// //                   px-3 py-1 rounded-full text-sm font-semibold
 // //                   ${
 // //                     order.payment_status === "paid"
 // //                       ? "bg-green-100 text-green-700"

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Package } from "lucide-react";
+import { API_ENDPOINTS, getAuthHeaders, getAuthToken } from "@/constants/apiConstants";
 
 type OrderItem = {
   product_name: string;
@@ -26,7 +27,7 @@ export default function MyOrders() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const token = localStorage.getItem("token"); // adjust key if needed
+    const token = getAuthToken();
 
     if (!token) {
       setError("User not authenticated");
@@ -34,15 +35,9 @@ export default function MyOrders() {
       return;
     }
 
-    fetch(
-      "https://z0vx5pwf-3000.inc1.devtunnels.ms/api/orders/my-orders",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    )
+    fetch(API_ENDPOINTS.ORDERS.MY_ORDERS, {
+      headers: getAuthHeaders(),
+    })
       .then(async (res) => {
         if (!res.ok) throw new Error("Failed to fetch orders");
         const data = await res.json();

@@ -20,6 +20,7 @@ import { Dialog, DialogContent, DialogTitle } from "@mui/material";
 import { QRCodeCanvas } from "qrcode.react";
 import StripeBuyButton from "@/components/StripePayButton";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { API_ENDPOINTS, getAuthHeaders } from "@/constants/apiConstants";
 
 export default function ProductPage() {
   const { id } = useParams(); 
@@ -42,15 +43,9 @@ export default function ProductPage() {
   useEffect(() => {
     const fetchProduct = async () => {
       try {
-        const res = await fetch(
-          `https://z0vx5pwf-3000.inc1.devtunnels.ms/api/products/${id}`,
-          {
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
-            },
-          }
-        );
+        const res = await fetch(API_ENDPOINTS.PRODUCTS.BY_ID(id!), {
+          headers: getAuthHeaders(),
+        });
 
         const data = await res.json();
         setProduct(data.product);
@@ -73,9 +68,9 @@ export default function ProductPage() {
   /** Stripe Checkout */
 const handleBuy = async () => {
   try {
-    const res = await fetch("https://z0vx5pwf-3000.inc1.devtunnels.ms/api/payment/create-checkout-session", {
+    const res = await fetch(API_ENDPOINTS.PAYMENT.CREATE_CHECKOUT_SESSION, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}`, },
+      headers: getAuthHeaders(),
       body: JSON.stringify({ productId: id }),
     });
 
