@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import html2canvas from 'html2canvas';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { API_ENDPOINTS, getAuthHeaders, STORAGE_KEYS } from '@/constants/apiConstants';
 import { Button } from '@/components/ui/button';
@@ -392,78 +393,112 @@ export default function PhoneCaseCustomizer() {
                 phoneCasePrice
             };
             localStorage.setItem('TEMP_PHONE_CASE_DESIGN', JSON.stringify(designState));
-
-            // Navigate to login if not authenticated
             navigate('/login', { state: { from: location } });
             return;
         }
-
         if (!targetProduct) {
             alert("Product info is loading...");
             return;
         }
 
-        // Get the selected phone model details
-        const selectedPhoneModel = phoneModels[selectedModel] || GENERIC_PHONE_TEMPLATE;
+        console.log("Checking html2canvas:", html2canvas);
+        if (typeof html2canvas === 'undefined' || !html2canvas) {
+            alert("Error: html2canvas library is not loaded properly.");
+            return;
+        }
 
-        // Ensure price is a number. Check targetProduct.price first, fall back to phoneCasePrice.
-        let rawPrice = targetProduct?.price;
-        let finalPrice = phoneCasePrice; // Default to the dynamic price from API
+        // 1. Deselect elements to hide handles for the screenshot
+        setSelectedElement(null);
+        await new Promise(resolve => setTimeout(resolve, 100)); // Wait for render
+        // 2. Capture Design
+        let designImageUrl = '';
+        if (canvasRef.current) {
+            try {
+                console.log("Starting design capture...");
+                const canvas = await html2canvas(canvasRef.current, {
+                    useCORS: true,
+                    scale: 2, // Higher quality
+                    backgroundColor: null,
+                    logging: true
+                });
 
-        if (typeof rawPrice === 'number') {
-            finalPrice = rawPrice;
-        } else if (typeof rawPrice === 'string') {
-            // Remove non-numeric characters except decimal point
-            const parsed = parseFloat(rawPrice.replace(/[^0-9.]/g, ''));
-            if (!isNaN(parsed) && parsed > 0) {
-                finalPrice = parsed;
+                console.log("Canvas created, converting to blob...");
+                const blob = await new Promise<Blob | null>(resolve =>
+                    canvas.toBlob(resolve, 'image/png')
+                );
+
+                if (blob) {
+                    const formData = new FormData();
+                    formData.append('image', blob, 'design.png');
+
+                    const uploadUrl = `${import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/upload/design`;
+                    console.log("Uploading design to:", uploadUrl);
+
+                    try {
+                        // Upload to new backend endpoint
+                        const uploadRes = await fetch(uploadUrl, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (uploadRes.ok) {
+                            const uploadData = await uploadRes.json();
+                            designImageUrl = uploadData.url;
+                            console.log("Design image uploaded successfully:", designImageUrl);
+                        } else {
+                            const errorText = await uploadRes.text();
+                            console.error("Design upload failed. Status:", uploadRes.status, "Response:", errorText);
+                            alert(`Warning: Design upload failed (${uploadRes.status}). Proceeding without design image.`);
+                        }
+                    } catch (uploadErr) {
+                        console.error("Network error during design upload:", uploadErr);
+                        alert(`Error uploading design: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}. Check console for details.`);
+                    }
+                } else {
+                    console.error("Failed to create blob from canvas");
+                    alert("Error: Could not process design image.");
+                }
+            } catch (err) {
+                console.error("Failed to capture design canvas:", err);
+                alert(`Design capture failed: ${err instanceof Error ? err.message : String(err)}. Proceeding without design image...`);
             }
         }
 
-        // If finalPrice is still invalid, fallback to default
-        if (!finalPrice || isNaN(finalPrice)) {
-            finalPrice = 499;
+        console.log("Proceeding to checkout with design URL:", designImageUrl);
+
+        // 3. Proceed to Checkout
+        const selectedPhoneModel = phoneModels[selectedModel] || GENERIC_PHONE_TEMPLATE;
+        let rawPrice = targetProduct?.price;
+        let finalPrice = phoneCasePrice;
+        if (typeof rawPrice === 'number') {
+            finalPrice = rawPrice;
+        } else if (typeof rawPrice === 'string') {
+            const parsed = parseFloat(rawPrice.replace(/[^0-9.]/g, ''));
+            if (!isNaN(parsed) && parsed > 0) finalPrice = parsed;
         }
-
-        const price = finalPrice;
-
-        console.log('Creating checkout session with:', {
-            productId: targetProduct._id || targetProduct.id,
-            finalPrice,
-            phoneModel: selectedPhoneModel.name,
-            caseColor
-        });
-
+        if (!finalPrice || isNaN(finalPrice)) finalPrice = 499;
         try {
             const res = await fetch(API_ENDPOINTS.PAYMENT.CREATE_CHECKOUT_SESSION, {
                 method: "POST",
                 headers: getAuthHeaders(),
                 body: JSON.stringify({
                     productId: targetProduct._id || targetProduct.id,
-                    price: price, // Dynamic price from admin
+                    price: finalPrice,
                     metadata: {
                         phoneModel: selectedPhoneModel.name,
                         caseColor: caseColor,
-                        customDesign: true
+                        customDesign: true,
+                        designImage: designImageUrl, // Pass the image URL here
+                        design_image: designImageUrl // Also pass as snake_case in case backend expects it
                     }
                 }),
             });
-
             const data = await res.json();
-
-            // Check if response is not OK (4xx or 5xx)
             if (!res.ok) {
-                console.error('Checkout failed:', data);
                 alert(`Checkout failed: ${data.message || data.error || 'Unknown error'}`);
                 return;
             }
-
-            if (data.url) {
-                window.location.href = data.url; // redirect to Stripe Checkout
-            } else {
-                console.error('No checkout URL in response:', data);
-                alert("Failed to create checkout session - no URL returned");
-            }
+            if (data.url) window.location.href = data.url;
         } catch (error) {
             console.error("Checkout error:", error);
             alert(`Something went wrong: ${error instanceof Error ? error.message : 'Unknown error'}`);
