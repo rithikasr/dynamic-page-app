@@ -19,7 +19,14 @@ export default function AdminProducts() {
   const [open, setOpen] = useState(false);
   const [editMode, setEditMode] = useState(false);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    name: string;
+    description: string;
+    price: string;
+    currency: string;
+    image: string | File;
+    stock: string;
+  }>({
     name: "",
     description: "",
     price: "",
@@ -70,16 +77,25 @@ export default function AdminProducts() {
   };
 
   const handleSubmit = async () => {
-    const payload = {
-      ...form,
-      price: Number(form.price),
-      stock: Number(form.stock),
-    };
+    const formData = new FormData();
+    formData.append('name', form.name);
+    formData.append('description', form.description);
+    formData.append('price', form.price);
+    formData.append('stock', form.stock);
+    formData.append('currency', form.currency);
+
+    // Check if image is a File object (new upload)
+    if (form.image instanceof File) {
+      formData.append('image', form.image);
+    } else if (typeof form.image === 'string' && form.image) {
+      // If it's a string, we might want to send it too if backend supports URL updates
+      // formData.append('image', form.image);
+    }
 
     if (editMode) {
-      await updateProduct(selectedId, payload);
+      await updateProduct(selectedId, formData);
     } else {
-      await createProduct(payload);
+      await createProduct(formData);
     }
 
     setOpen(false);
@@ -163,7 +179,7 @@ export default function AdminProducts() {
           </DialogHeader>
 
           <div className="space-y-4">
-            {["name", "description", "image"].map((field) => (
+            {["name", "description"].map((field) => (
               <div key={field}>
                 <Label className="capitalize">{field}</Label>
                 <Input
@@ -174,6 +190,37 @@ export default function AdminProducts() {
                 />
               </div>
             ))}
+
+            <div>
+              <Label>Image</Label>
+              <div className="flex flex-col gap-2">
+                {/* Preview existing image or selected file */}
+                {typeof form.image === 'string' && form.image && (
+                  <img
+                    src={form.image}
+                    alt="Product Preview"
+                    className="w-full h-32 object-contain bg-gray-50 rounded-lg border"
+                  />
+                )}
+
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setForm({ ...form, image: file });
+                    }
+                  }}
+                  className="cursor-pointer"
+                />
+                {form.image instanceof File && (
+                  <p className="text-xs text-gray-500">
+                    Selected: {form.image.name}
+                  </p>
+                )}
+              </div>
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>

@@ -8,6 +8,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { ArrowRight, Sparkles, Heart, Star } from "lucide-react";
 import Stack from "@/components/Stack"; // TSX Stack component
 import { useState, useEffect } from "react";
+import { API_ENDPOINTS, getAuthHeaders } from "@/constants/apiConstants";
 
 
 interface Product {
@@ -26,18 +27,11 @@ const HomeContent = () => {
 useEffect(() => {
   const fetchProducts = async () => {
     try {
-      const token = localStorage.getItem("token");
-
-      const res = await fetch(
-        "https://z0vx5pwf-3000.inc1.devtunnels.ms/api/products",
-        {
-          headers: {
-            "Content-Type": "application/json",
-            // Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY5ODcxZjAzMTgxMmEzMzFmMmY3MTAzZiIsImVtYWlsIjoiaWFtcml5YXNoeWRlckBnbWFpbC5jb20iLCJpYXQiOjE3NzA2MzgyMDIsImV4cCI6MTc3MTI0MzAwMn0.ZGYxvF1wnrBL3FXxJrn4QNzEF1ZI7DTFs3ULbMMg9PU`,
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const res = await fetch(API_ENDPOINTS.PRODUCTS.BASE, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
 
       const data = await res.json();
       const mapped = data.products.map((p: any) => ({
@@ -192,7 +186,13 @@ useEffect(() => {
 >
   {product.stock > 0 ? (
     <Link 
-      to={product.name.toLowerCase().includes('phone case') ? "/customize-phone-case" : `/product/${product.id}`}
+      to={
+        product.name.toLowerCase().includes('phone case') 
+          ? `/customize-phone-case/${product.id}` 
+          : (product.name.toLowerCase().includes('t-shirt') || product.name.toLowerCase().includes('tshirt') 
+              ? `/customize-t-shirt/${product.id}` 
+              : `/product/${product.id}`)
+      }
       state={{ product: product }}
     >
       {t("common.startDesigning")}

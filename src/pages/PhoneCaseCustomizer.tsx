@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import html2canvas from 'html2canvas';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
+import { API_ENDPOINTS, getAuthHeaders, STORAGE_KEYS } from '@/constants/apiConstants';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -116,6 +118,7 @@ export default function PhoneCaseCustomizer() {
     const [moveableTarget, setMoveableTarget] = useState<HTMLElement | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [targetProduct, setTargetProduct] = useState<any>(null);
+    const [phoneCasePrice, setPhoneCasePrice] = useState(499); // Dynamic pricing from backend
 
     // Text editor state
     const [textInput, setTextInput] = useState('');
@@ -152,12 +155,9 @@ export default function PhoneCaseCustomizer() {
         }
 
         try {
-            const response = await fetch('https://z0vx5pwf-3000.inc1.devtunnels.ms/api/phone-models/request', {
+            const response = await fetch(API_ENDPOINTS.PHONE_MODELS.REQUEST, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${localStorage.getItem('token')}`
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     brand: requestBrand,
                     model: requestModel,
@@ -280,14 +280,72 @@ export default function PhoneCaseCustomizer() {
 
     const location = useLocation();
 
+    const { productId } = useParams();
+
+    // Fetch dynamic pricing from backend
+    useEffect(() => {
+        const fetchPricing = async () => {
+            try {
+                const res = await fetch(API_ENDPOINTS.PRICING.PHONE_CASE);
+                const data = await res.json();
+                if (data.success && data.pricing) {
+                    setPhoneCasePrice(data.pricing.basePrice);
+                }
+            } catch (err) {
+                console.error('Failed to fetch phone case pricing:', err);
+                // Keep default price of 499
+            }
+        };
+        fetchPricing();
+    }, []);
+
     // Fetch product for checkout
     useEffect(() => {
         const loadProduct = async () => {
-            // Check if product was passed via navigation state
+            // 0. Check for saved design (restore strategy)
+            const savedDesignJSON = localStorage.getItem('TEMP_PHONE_CASE_DESIGN');
+            if (savedDesignJSON) {
+                try {
+                    const parsed = JSON.parse(savedDesignJSON);
+
+                    // Restore all state
+                    if (parsed.selectedModel) setSelectedModel(parsed.selectedModel);
+                    if (parsed.caseColor) setCaseColor(parsed.caseColor);
+                    if (parsed.designElements) setDesignElements(parsed.designElements);
+                    if (parsed.targetProduct) setTargetProduct(parsed.targetProduct);
+                    if (parsed.phoneCasePrice) setPhoneCasePrice(parsed.phoneCasePrice);
+
+                    // Clear the temporary state
+                    localStorage.removeItem('TEMP_PHONE_CASE_DESIGN');
+                    return; // Stop here, use restored data
+                } catch (e) {
+                    console.error("Error parsing saved design", e);
+                    // continue to normal load if error
+                }
+            }
+
+            // 1. Check if product was passed via navigation state
             if (location.state?.product) {
                 setTargetProduct(location.state.product);
                 return;
             }
+
+            // 2. Check if productId is in URL
+            if (productId) {
+                try {
+                    const res = await fetch(API_ENDPOINTS.PRODUCTS.BY_ID(productId), {
+                        headers: getAuthHeaders(),
+                    });
+                    const data = await res.json();
+                    if (data.product) {
+                        setTargetProduct(data.product);
+                        return;
+                    }
+                } catch (err) {
+                    console.error("Failed to load product by ID", err);
+                }
+            }
+
 
             try {
                 const products = await fetchProducts();
@@ -320,34 +378,130 @@ export default function PhoneCaseCustomizer() {
             }
         };
         loadProduct();
-    }, [location.state]);
+    }, [location.state, productId]);
 
     const handleBuy = async () => {
+        // Check if user is logged in
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (!token) {
+            // Save state before redirecting
+            const designState = {
+                selectedModel,
+                caseColor,
+                designElements,
+                targetProduct,
+                phoneCasePrice
+            };
+            localStorage.setItem('TEMP_PHONE_CASE_DESIGN', JSON.stringify(designState));
+            navigate('/login', { state: { from: location } });
+            return;
+        }
         if (!targetProduct) {
             alert("Product info is loading...");
             return;
         }
 
-        try {
-            const res = await fetch("https://z0vx5pwf-3000.inc1.devtunnels.ms/api/payment/create-checkout-session", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
-                body: JSON.stringify({ productId: targetProduct._id || targetProduct.id }),
-            });
+        console.log("Checking html2canvas:", html2canvas);
+        if (typeof html2canvas === 'undefined' || !html2canvas) {
+            alert("Error: html2canvas library is not loaded properly.");
+            return;
+        }
 
-            const data = await res.json();
+        // 1. Deselect elements to hide handles for the screenshot
+        setSelectedElement(null);
+        await new Promise(resolve => setTimeout(resolve, 100)); // Wait for render
+        // 2. Capture Design
+        let designImageUrl = '';
+        if (canvasRef.current) {
+            try {
+                console.log("Starting design capture...");
+                const canvas = await html2canvas(canvasRef.current, {
+                    useCORS: true,
+                    scale: 2, // Higher quality
+                    backgroundColor: null,
+                    logging: true
+                });
 
-            if (data.url) {
-                window.location.href = data.url; // redirect to Stripe Checkout
-            } else {
-                alert("Failed to create checkout session");
+                console.log("Canvas created, converting to blob...");
+                const blob = await new Promise<Blob | null>(resolve =>
+                    canvas.toBlob(resolve, 'image/png')
+                );
+
+                if (blob) {
+                    const formData = new FormData();
+                    formData.append('image', blob, 'design.png');
+
+                    const uploadUrl = `${import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/upload/design`;
+                    console.log("Uploading design to:", uploadUrl);
+
+                    try {
+                        // Upload to new backend endpoint
+                        const uploadRes = await fetch(uploadUrl, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (uploadRes.ok) {
+                            const uploadData = await uploadRes.json();
+                            designImageUrl = uploadData.url;
+                            console.log("Design image uploaded successfully:", designImageUrl);
+                        } else {
+                            const errorText = await uploadRes.text();
+                            console.error("Design upload failed. Status:", uploadRes.status, "Response:", errorText);
+                            alert(`Warning: Design upload failed (${uploadRes.status}). Proceeding without design image.`);
+                        }
+                    } catch (uploadErr) {
+                        console.error("Network error during design upload:", uploadErr);
+                        alert(`Error uploading design: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}. Check console for details.`);
+                    }
+                } else {
+                    console.error("Failed to create blob from canvas");
+                    alert("Error: Could not process design image.");
+                }
+            } catch (err) {
+                console.error("Failed to capture design canvas:", err);
+                alert(`Design capture failed: ${err instanceof Error ? err.message : String(err)}. Proceeding without design image...`);
             }
+        }
+
+        console.log("Proceeding to checkout with design URL:", designImageUrl);
+
+        // 3. Proceed to Checkout
+        const selectedPhoneModel = phoneModels[selectedModel] || GENERIC_PHONE_TEMPLATE;
+        let rawPrice = targetProduct?.price;
+        let finalPrice = phoneCasePrice;
+        if (typeof rawPrice === 'number') {
+            finalPrice = rawPrice;
+        } else if (typeof rawPrice === 'string') {
+            const parsed = parseFloat(rawPrice.replace(/[^0-9.]/g, ''));
+            if (!isNaN(parsed) && parsed > 0) finalPrice = parsed;
+        }
+        if (!finalPrice || isNaN(finalPrice)) finalPrice = 499;
+        try {
+            const res = await fetch(API_ENDPOINTS.PAYMENT.CREATE_CHECKOUT_SESSION, {
+                method: "POST",
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    productId: targetProduct._id || targetProduct.id,
+                    price: finalPrice,
+                    metadata: {
+                        phoneModel: selectedPhoneModel.name,
+                        caseColor: caseColor,
+                        customDesign: true,
+                        designImage: designImageUrl, // Pass the image URL here
+                        design_image: designImageUrl // Also pass as snake_case in case backend expects it
+                    }
+                }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                alert(`Checkout failed: ${data.message || data.error || 'Unknown error'}`);
+                return;
+            }
+            if (data.url) window.location.href = data.url;
         } catch (error) {
             console.error("Checkout error:", error);
-            alert("Something went wrong");
+            alert(`Something went wrong: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
     };
 

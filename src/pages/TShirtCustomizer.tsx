@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import html2canvas from 'html2canvas';
+import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -22,6 +23,7 @@ import {
 import { useLanguage } from '@/contexts/LanguageContext';
 import Moveable from 'react-moveable';
 import { fetchProducts } from '@/api/products';
+import { API_ENDPOINTS, getAuthHeaders, STORAGE_KEYS } from '@/constants/apiConstants';
 
 // T-Shirt sizes
 const SIZES = ['S', 'M', 'L', 'XL', 'XXL', '3XL'];
@@ -85,6 +87,8 @@ interface DesignElement {
 
 export default function TShirtCustomizer() {
     const { t } = useLanguage();
+    const navigate = useNavigate();
+    const location = useLocation();
 
     // T-shirt state
     const [shirtType, setShirtType] = useState<string>('half-sleeve');
@@ -95,6 +99,16 @@ export default function TShirtCustomizer() {
     const [moveableTarget, setMoveableTarget] = useState<HTMLElement | null>(null);
     const [showPreview, setShowPreview] = useState(false);
     const [targetProduct, setTargetProduct] = useState<any>(null);
+
+    // Dynamic pricing from backend (fallback to TSHIRT_TYPES defaults)
+    const [tshirtPricing, setTshirtPricing] = useState<Record<string, number>>({
+        'half-sleeve': 599,
+        'v-neck': 649,
+        'polo': 799,
+        'full-sleeve': 699,
+        'oversized': 749,
+        'sweatshirt': 999
+    });
 
     // Text editor state
     const [textInput, setTextInput] = useState('');
@@ -261,15 +275,77 @@ export default function TShirtCustomizer() {
         }
     }, [selectedElement, designElements]);
 
-    const location = useLocation();
 
-    // Fetch product for checkout
+    const { productId } = useParams();
+
+    // Fetch dynamic pricing from backend
+    useEffect(() => {
+        const fetchPricing = async () => {
+            try {
+                const res = await fetch(API_ENDPOINTS.PRICING.T_SHIRT);
+                const data = await res.json();
+                if (data.success && data.pricing && data.pricing.tshirtTypes) {
+                    const priceMap: Record<string, number> = {};
+                    data.pricing.tshirtTypes.forEach((type: any) => {
+                        priceMap[type.id] = type.price;
+                    });
+                    setTshirtPricing(priceMap);
+                }
+            } catch (err) {
+                console.error('Failed to fetch t-shirt pricing:', err);
+                // Keep default prices
+            }
+        };
+        fetchPricing();
+    }, []);
+
+
+
+    // Fetch product for checkout or restore design
     useEffect(() => {
         const loadProduct = async () => {
-            // Check if product was passed via navigation state
+            // 0. Check for saved design (restore strategy)
+            const savedDesignJSON = localStorage.getItem('TEMP_TSHIRT_DESIGN');
+            if (savedDesignJSON) {
+                try {
+                    const parsed = JSON.parse(savedDesignJSON);
+
+                    // Restore all state
+                    if (parsed.shirtType) setShirtType(parsed.shirtType);
+                    if (parsed.size) setSize(parsed.size);
+                    if (parsed.color) setColor(parsed.color);
+                    if (parsed.designElements) setDesignElements(parsed.designElements);
+                    if (parsed.targetProduct) setTargetProduct(parsed.targetProduct);
+
+                    // Clear the temporary state
+                    localStorage.removeItem('TEMP_TSHIRT_DESIGN');
+                    return; // Stop here, use restored data
+                } catch (e) {
+                    console.error("Error parsing saved design", e);
+                    // continue to normal load if error
+                }
+            }
+
+            // 1. Check if product was passed via navigation state
             if (location.state?.product) {
                 setTargetProduct(location.state.product);
                 return;
+            }
+
+            // 2. Check if productId is in URL
+            if (productId) {
+                try {
+                    const res = await fetch(API_ENDPOINTS.PRODUCTS.BY_ID(productId), {
+                        headers: getAuthHeaders(),
+                    });
+                    const data = await res.json();
+                    if (data.product) {
+                        setTargetProduct(data.product);
+                        return;
+                    }
+                } catch (err) {
+                    console.error("Failed to load product by ID", err);
+                }
             }
 
             try {
@@ -303,46 +379,119 @@ export default function TShirtCustomizer() {
             }
         };
         loadProduct();
-    }, [location.state]);
+    }, [location.state, productId]);
 
 
     const handleBuy = async () => {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (!token) {
+            const designState = { shirtType, size, color, designElements, targetProduct };
+            localStorage.setItem('TEMP_TSHIRT_DESIGN', JSON.stringify(designState));
+            navigate('/login', { state: { from: location } });
+            return;
+        }
         if (!targetProduct) {
             alert("Product info is loading...");
             return;
         }
 
+        console.log("Checking html2canvas:", html2canvas);
+        if (typeof html2canvas === 'undefined' || !html2canvas) {
+            alert("Error: html2canvas library is not loaded properly.");
+            return;
+        }
+
+        // 1. Capture Design
+        setSelectedElement(null);
+        await new Promise(resolve => setTimeout(resolve, 100));
+        let designImageUrl = '';
+
+        if (canvasRef.current) {
+            try {
+                console.log("Starting design capture...");
+                const canvas = await html2canvas(canvasRef.current, {
+                    useCORS: true,
+                    scale: 2,
+                    backgroundColor: null,
+                    logging: true // Enable html2canvas logging
+                });
+
+                console.log("Canvas created, converting to blob...");
+                const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'));
+
+                if (blob) {
+                    const formData = new FormData();
+                    formData.append('image', blob, 'design.png');
+
+                    const uploadUrl = `${import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/upload/design`;
+                    console.log("Uploading design to:", uploadUrl);
+
+                    try {
+                        const uploadRes = await fetch(uploadUrl, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (uploadRes.ok) {
+                            const uploadData = await uploadRes.json();
+                            designImageUrl = uploadData.url;
+                            console.log("Design image uploaded successfully:", designImageUrl);
+                        } else {
+                            const errorText = await uploadRes.text();
+                            console.error("Design upload failed. Status:", uploadRes.status, "Response:", errorText);
+                            alert(`Warning: Design upload failed (${uploadRes.status}). Proceeding without design image.`);
+                        }
+                    } catch (uploadErr) {
+                        console.error("Network error during design upload:", uploadErr);
+                        alert(`Error uploading design: ${uploadErr instanceof Error ? uploadErr.message : String(uploadErr)}. Check console for details.`);
+                    }
+                } else {
+                    console.error("Failed to create blob from canvas");
+                    alert("Error: Could not process design image.");
+                }
+            } catch (err) {
+                console.error("Failed to capture design canvas:", err);
+                alert(`Design capture failed: ${err instanceof Error ? err.message : String(err)}. Proceeding without design image...`);
+            }
+        }
+
+        console.log("Proceeding to checkout with design URL:", designImageUrl);
+
+        // 2. Checkout
         const selectedType = TSHIRT_TYPES.find(t => t.id === shirtType);
-
-
+        let rawPrice = tshirtPricing[shirtType] || targetProduct?.price || 599;
+        let finalPrice = 599;
+        if (typeof rawPrice === 'number') finalPrice = rawPrice;
+        else if (typeof rawPrice === 'string') {
+            const parsed = parseFloat(rawPrice.replace(/[^0-9.]/g, ''));
+            if (!isNaN(parsed) && parsed > 0) finalPrice = parsed;
+        }
         try {
-            const res = await fetch("https://z0vx5pwf-3000.inc1.devtunnels.ms/api/payment/create-checkout-session", {
+            const res = await fetch(API_ENDPOINTS.PAYMENT.CREATE_CHECKOUT_SESSION, {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
+                headers: getAuthHeaders(),
                 body: JSON.stringify({
                     productId: targetProduct._id || targetProduct.id,
+                    price: finalPrice,
                     metadata: {
                         shirtType: selectedType?.name,
                         size,
                         color,
-                        customDesign: true
+                        customDesign: true,
+                        designImage: designImageUrl, // Pass the image URL
+                        design_image: designImageUrl // Also pass as snake_case
                     }
                 }),
             });
-
             const data = await res.json();
-
-            if (data.url) {
-                window.location.href = data.url;
-            } else {
-                alert("Failed to create checkout session");
+            if (!res.ok) {
+                alert(`Checkout failed: ${data.message || data.error}`);
+                return;
             }
+            if (data.url) window.location.href = data.url;
         } catch (error) {
             console.error("Checkout error:", error);
-            alert("Something went wrong");
+            alert(`Something went wrong`);
         }
     };
 
@@ -394,12 +543,12 @@ export default function TShirtCustomizer() {
                                                     key={type.id}
                                                     onClick={() => setShirtType(type.id)}
                                                     className={`cursor-pointer border-2 rounded-lg p-2 text-sm transition-all flex flex-col justify-between ${shirtType === type.id
-                                                            ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
-                                                            : 'border-gray-200 hover:border-indigo-300'
+                                                        ? 'border-indigo-600 bg-indigo-50 text-indigo-700'
+                                                        : 'border-gray-200 hover:border-indigo-300'
                                                         }`}
                                                 >
                                                     <span className="font-semibold">{type.name}</span>
-                                                    <span className="text-xs text-gray-500">₹{type.price}</span>
+                                                    <span className="text-xs text-gray-500">₹{tshirtPricing[type.id] || type.price}</span>
                                                     {shirtType === type.id && <Check className="h-4 w-4 text-indigo-600 self-end mt-1" />}
                                                 </div>
                                             ))}
@@ -612,7 +761,7 @@ export default function TShirtCustomizer() {
                     {/* Center - Canvas */}
                     <div className="lg:col-span-2">
                         <Card className="p-8 bg-white/90 backdrop-blur-sm shadow-2xl border-2 border-indigo-100 min-h-[700px] flex items-center justify-center">
-                            <div className="relative" style={{ width: TSHIRT_WIDTH, height: TSHIRT_HEIGHT }}>
+                            <div ref={canvasRef} className="relative" style={{ width: TSHIRT_WIDTH, height: TSHIRT_HEIGHT }}>
                                 {/* T-Shirt SVG Shape */}
                                 <svg
                                     viewBox="0 0 500 600"
@@ -641,7 +790,6 @@ export default function TShirtCustomizer() {
                                 <div className="absolute inset-0 overflow-hidden">
                                     <div
                                         className="relative w-full h-full z-10"
-                                        ref={canvasRef}
                                     >
                                         {designElements.map((element) => (
                                             <div key={element.id}>
@@ -819,7 +967,7 @@ export default function TShirtCustomizer() {
                             <div className="flex justify-between items-center border-t pt-3">
                                 <span className="font-semibold text-gray-700">Price:</span>
                                 <span className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-cyan-600 bg-clip-text text-transparent">
-                                    ₹{selectedTypeInfo?.price || targetProduct?.price || 599}
+                                    ₹{tshirtPricing[shirtType] || targetProduct?.price || 599}
                                 </span>
                             </div>
                         </div>

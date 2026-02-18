@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { API_ENDPOINTS, STORAGE_KEYS } from "@/constants/apiConstants";
 
 const Login = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [form, setForm] = useState({
     email: "",
@@ -23,23 +25,21 @@ const Login = () => {
     setMsg("");
 
     try {
-      const res = await fetch(
-        "https://z0vx5pwf-3000.inc1.devtunnels.ms/auth/login",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form),
-        }
-      );
+      const res = await fetch(API_ENDPOINTS.AUTH.LOGIN, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
 
       const data = await res.json();
 
       if (data.success) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("user", JSON.stringify(data.user));
+        localStorage.setItem(STORAGE_KEYS.TOKEN, data.token);
+        localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data.user));
 
+        const from = location.state?.from?.pathname || "/";
         setMsg("Login successful! Redirecting...");
-        setTimeout(() => navigate("/"), 1500);
+        setTimeout(() => navigate(from), 1500);
       } else {
         setMsg(data.message || "Invalid credentials");
       }
@@ -79,6 +79,14 @@ const Login = () => {
                 className="w-full px-4 py-2 border rounded-lg"
                 onChange={handleChange}
               />
+              <div className="flex justify-end mt-1">
+                <Link
+                  to="/forgot-password"
+                  className="text-sm text-pink-600 hover:text-pink-700 font-medium"
+                >
+                  Forgot Password?
+                </Link>
+              </div>
             </div>
 
             <Button className="w-full mt-4" disabled={loading}>

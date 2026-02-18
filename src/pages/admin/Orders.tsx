@@ -43,13 +43,13 @@ export default function AdminOrders() {
       <h1 className="text-4xl font-extrabold mb-8 text-[#111827]">
         Your Orders
       </h1>
-      
-  <Button
-    onClick={() => navigate("/admin/products")}
-    className="bg-pink-600 hover:bg-pink-700 text-white rounded-xl px-6 py-2"
-  >
-    Manage Products
-  </Button>
+
+      <Button
+        onClick={() => navigate("/admin/products")}
+        className="bg-pink-600 hover:bg-pink-700 text-white rounded-xl px-6 py-2"
+      >
+        Manage Products
+      </Button>
 
       <div className="grid grid-cols-12 gap-6">
         {/* LEFT */}
@@ -71,11 +71,10 @@ export default function AdminOrders() {
                   <div
                     key={order._id}
                     onClick={() => setActive(order)}
-                    className={`p-4 rounded-2xl cursor-pointer transition border-2 ${
-                      active?._id === order._id
-                        ? "border-pink-500 bg-[#FDF2F8]"
-                        : "border-transparent hover:bg-pink-50"
-                    }`}
+                    className={`p-4 rounded-2xl cursor-pointer transition border-2 ${active?._id === order._id
+                      ? "border-pink-500 bg-[#FDF2F8]"
+                      : "border-transparent hover:bg-pink-50"
+                      }`}
                   >
                     <p className="font-bold text-pink-600">
                       #{order._id.slice(-6)}
@@ -145,24 +144,63 @@ export default function AdminOrders() {
 
               <h3 className="font-bold mb-4 text-lg text-gray-800">Items</h3>
               <div className="space-y-4">
-                {active.order_items.map((item: any, idx: number) => (
-                  <div
-                    key={idx}
-                    className="flex justify-between items-center p-4 rounded-2xl bg-gradient-to-r from-[#FDF2F8] to-white"
-                  >
-                    <div>
-                      <p className="font-semibold text-gray-800">
-                        {item.product_name}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        Qty: {item.quantity}
-                      </p>
+                {active.order_items.map((item: any, idx: number) => {
+                  const designImg = item.design_image || item.designImage;
+                  return (
+                    <div
+                      key={idx}
+                      className="flex flex-col p-4 rounded-2xl bg-gradient-to-r from-[#FDF2F8] to-white space-y-3"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-semibold text-gray-800">
+                            {item.product_name}
+                          </p>
+                          <p className="text-sm text-gray-500">
+                            Qty: {item.quantity}
+                          </p>
+                          {/* Show customization details if available */}
+                          {item.customization_details && (
+                            <div className="mt-1 text-xs text-gray-600 space-y-0.5">
+                              {item.customization_details.phoneModel && (
+                                <p>Model: {item.customization_details.phoneModel}</p>
+                              )}
+                              {item.customization_details.caseColor && (
+                                <p className="flex items-center gap-1">
+                                  Color:
+                                  <span
+                                    className="w-3 h-3 rounded-full border border-gray-300 block"
+                                    style={{ backgroundColor: item.customization_details.caseColor }}
+                                  />
+                                </p>
+                              )}
+                              {item.customization_details.size && (
+                                <p>Size: {item.customization_details.size}</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <p className="font-bold text-pink-600">
+                          ₹{item.unit_price}
+                        </p>
+                      </div>
+
+                      {/* Display Design Image */}
+                      {designImg && (
+                        <div className="mt-2 text-center">
+                          <p className="text-xs text-gray-400 mb-1 text-left">Custom Design:</p>
+                          <a href={designImg} target="_blank" rel="noopener noreferrer">
+                            <img
+                              src={designImg}
+                              alt="Custom Design"
+                              className="w-full h-auto max-h-64 object-contain rounded-lg border-2 border-pink-100 bg-white"
+                            />
+                          </a>
+                        </div>
+                      )}
                     </div>
-                    <p className="font-bold text-pink-600">
-                      ₹{item.unit_price}
-                    </p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           )}
@@ -378,7 +416,7 @@ export default function AdminOrders() {
 // //               {/* Status Badge */}
 // //               <span
 // //                 className={`
-// //                   px-3 py-1 rounded-full text-sm font-semibold 
+// //                   px-3 py-1 rounded-full text-sm font-semibold
 // //                   ${
 // //                     order.payment_status === "paid"
 // //                       ? "bg-green-100 text-green-700"

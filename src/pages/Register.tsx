@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
+import { API_ENDPOINTS } from "@/constants/apiConstants";
 
 const Register = () => {
   const navigate = useNavigate();
@@ -24,14 +25,11 @@ const Register = () => {
     setMsg("");
 
     try {
-      const res = await fetch(
-        "https://z0vx5pwf-3000.inc1.devtunnels.ms/auth/register",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(form)
-        }
-      );
+      const res = await fetch(API_ENDPOINTS.AUTH.REGISTER, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form)
+      });
 
       const data = await res.json();
 
