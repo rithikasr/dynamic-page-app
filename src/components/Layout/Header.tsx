@@ -1,13 +1,26 @@
 import { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { Menu, X, Globe } from 'lucide-react';
+import { Menu, X, Globe, LogIn, LogOut } from 'lucide-react';
+import { STORAGE_KEYS } from '@/constants/apiConstants';
+import { CartSheet } from '@/components/CartSheet';
 
 const Header = () => {
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const isLoggedIn = !!localStorage.getItem(STORAGE_KEYS.TOKEN);
+
+  const handleLogout = () => {
+    localStorage.removeItem(STORAGE_KEYS.TOKEN);
+    localStorage.removeItem(STORAGE_KEYS.USER);
+    navigate('/login');
+    // window.location.reload(); // Optional: to ensure state is cleared if needed
+  };
 
   const navItems = [
     { path: '/', label: t('nav.home') },
@@ -37,11 +50,10 @@ const Header = () => {
               <Link
                 key={item.path}
                 to={item.path}
-                className={`text-sm font-medium transition-colors hover:text-primary ${
-                  location.pathname === item.path
-                    ? 'text-primary'
-                    : 'text-gray-600'
-                }`}
+                className={`text-sm font-medium transition-colors hover:text-primary ${location.pathname === item.path
+                  ? 'text-primary'
+                  : 'text-gray-600'
+                  }`}
               >
                 {item.label}
               </Link>
@@ -59,20 +71,40 @@ const Header = () => {
               <Globe className="h-4 w-4" />
               <span>{language.toUpperCase()}</span>
             </Button>
+
+            <CartSheet />
+
+            {isLoggedIn ? (
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="flex items-center space-x-1">
+                <LogOut className="h-4 w-4" />
+                <span>Logout</span>
+              </Button>
+            ) : (
+              <Button asChild variant="ghost" size="sm" className="flex items-center space-x-1">
+                <Link to="/login">
+                  <LogIn className="h-4 w-4" />
+                  <span>Login / Register</span>
+                </Link>
+              </Button>
+            )}
+
             <Button asChild>
               <Link to="/product/phone-case">{t('common.startDesigning')}</Link>
             </Button>
           </div>
 
           {/* Mobile Menu Button */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="md:hidden"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-          >
-            {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </Button>
+          {/* Mobile Menu Button and Cart */}
+          <div className="md:hidden flex items-center space-x-2">
+            <CartSheet />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
+            >
+              {isMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </Button>
+          </div>
         </div>
 
         {/* Mobile Menu */}
@@ -83,11 +115,10 @@ const Header = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`text-sm font-medium transition-colors hover:text-primary ${
-                    location.pathname === item.path
-                      ? 'text-primary'
-                      : 'text-gray-600'
-                  }`}
+                  className={`text-sm font-medium transition-colors hover:text-primary ${location.pathname === item.path
+                    ? 'text-primary'
+                    : 'text-gray-600'
+                    }`}
                   onClick={() => setIsMenuOpen(false)}
                 >
                   {item.label}
@@ -103,6 +134,32 @@ const Header = () => {
                   <Globe className="h-4 w-4" />
                   <span>{language.toUpperCase()}</span>
                 </Button>
+
+                {isLoggedIn ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { handleLogout(); setIsMenuOpen(false); }}
+                    className="flex items-center space-x-1"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Logout</span>
+                  </Button>
+                ) : (
+                  <Button
+                    asChild
+                    variant="ghost"
+                    size="sm"
+                    className="flex items-center space-x-1"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    <Link to="/login">
+                      <LogIn className="h-4 w-4" />
+                      <span>Login / Register</span>
+                    </Link>
+                  </Button>
+                )}
+
                 <Button asChild>
                   <Link to="/product/phone-case" onClick={() => setIsMenuOpen(false)}>
                     {t('common.startDesigning')}

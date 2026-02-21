@@ -39,9 +39,20 @@ export const API_ENDPOINTS = {
         MY_ORDERS: `${API_BASE_URL}/api/orders/my-orders`,
     },
 
+    // Cart endpoints
+    CART: {
+        GET: `${API_BASE_URL}/api/cart`,
+        ADD: `${API_BASE_URL}/api/cart/add`,
+        REMOVE: `${API_BASE_URL}/api/cart/remove`,
+        REMOVE_SAVED: `${API_BASE_URL}/api/cart/remove-saved`,
+        SAVE_FOR_LATER: `${API_BASE_URL}/api/cart/save-for-later`,
+        MOVE_TO_CART: `${API_BASE_URL}/api/cart/move-to-cart`,
+    },
+
     // Payment endpoints
     PAYMENT: {
         CREATE_CHECKOUT_SESSION: `${API_BASE_URL}/api/payment/create-checkout-session`,
+        CART_CHECKOUT_SESSION: `${API_BASE_URL}/api/payment/cart-checkout-session`,
     },
 
     // Phone models endpoints

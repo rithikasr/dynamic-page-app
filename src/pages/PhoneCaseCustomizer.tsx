@@ -18,8 +18,11 @@ import {
     Smartphone,
     Search,
     AlertCircle,
-    Plus
+    Plus,
+    Bookmark,
+    Loader2
 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import Moveable from 'react-moveable';
 
@@ -502,6 +505,137 @@ export default function PhoneCaseCustomizer() {
         } catch (error) {
             console.error("Checkout error:", error);
             alert(`Something went wrong: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    };
+
+    const { toast } = useToast();
+    const [cartLoading, setCartLoading] = useState(false);
+
+    /** Capture the phone case canvas and upload the design preview. Returns upload URL or ''. */
+    const captureAndUploadDesign = async (): Promise<string> => {
+        if (!canvasRef.current) return '';
+        try {
+            setSelectedElement(null);
+            await new Promise(r => setTimeout(r, 120));
+            const canvas = await html2canvas(canvasRef.current, {
+                useCORS: true,
+                scale: 2,
+                backgroundColor: null,
+            });
+            const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/png'));
+            if (!blob) return '';
+
+            const formData = new FormData();
+            formData.append('image', blob, 'design.png');
+            const uploadUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/upload/design`;
+            const uploadRes = await fetch(uploadUrl, { method: 'POST', body: formData });
+            if (!uploadRes.ok) return '';
+            const uploadData = await uploadRes.json();
+            return uploadData.url || '';
+        } catch (err) {
+            console.error('Design capture/upload failed:', err);
+            return '';
+        }
+    };
+
+    const handleAddToCart = async () => {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (!token) {
+            const designState = { selectedModel, caseColor, designElements, targetProduct, phoneCasePrice };
+            localStorage.setItem('TEMP_PHONE_CASE_DESIGN', JSON.stringify(designState));
+            navigate('/login', { state: { from: location } });
+            return;
+        }
+        if (!targetProduct) return;
+
+        setCartLoading(true);
+        try {
+            // Capture design preview
+            const designImageUrl = await captureAndUploadDesign();
+
+            const res = await fetch(API_ENDPOINTS.CART.ADD, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    productId: targetProduct._id || targetProduct.id,
+                    quantity: 1,
+                    customization: {
+                        designImageUrl: designImageUrl || null,
+                        productType: 'phone-case',
+                        phoneModel: phoneModels[selectedModel]?.name || selectedModel,
+                        caseColor,
+                        hasCustomDesign: true
+                    }
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast({ title: '🛒 Added to Cart!', description: 'Your custom phone case has been saved to cart.' });
+                setShowPreview(false);
+            } else {
+                toast({ title: 'Error', description: data.message || 'Failed to add to cart', variant: 'destructive' });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' });
+        } finally {
+            setCartLoading(false);
+        }
+    };
+
+    const handleSaveForLater = async () => {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (!token) {
+            const designState = { selectedModel, caseColor, designElements, targetProduct, phoneCasePrice };
+            localStorage.setItem('TEMP_PHONE_CASE_DESIGN', JSON.stringify(designState));
+            navigate('/login', { state: { from: location } });
+            return;
+        }
+        if (!targetProduct) return;
+
+        // First add to cart then save-for-later so customization is preserved
+        setCartLoading(true);
+        try {
+            const designImageUrl = await captureAndUploadDesign();
+
+            // Add to cart with customization
+            const addRes = await fetch(API_ENDPOINTS.CART.ADD, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    productId: targetProduct._id || targetProduct.id,
+                    quantity: 1,
+                    customization: {
+                        designImageUrl: designImageUrl || null,
+                        productType: 'phone-case',
+                        phoneModel: phoneModels[selectedModel]?.name || selectedModel,
+                        caseColor,
+                        hasCustomDesign: true
+                    }
+                })
+            });
+            if (!addRes.ok) {
+                const d = await addRes.json();
+                toast({ title: 'Error', description: d.message || 'Failed to save item', variant: 'destructive' });
+                return;
+            }
+
+            // Move last added item to savedForLater by moving the last cart item
+            const cartData = await addRes.json();
+            const lastIdx = (cartData.cart?.cartItems?.length ?? 1) - 1;
+            await fetch(API_ENDPOINTS.CART.SAVE_FOR_LATER, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({ productId: targetProduct._id || targetProduct.id, itemIndex: lastIdx })
+            });
+
+            toast({ title: '🔖 Saved for Later', description: 'Your design has been saved for later.' });
+            setShowPreview(false);
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' });
+        } finally {
+            setCartLoading(false);
         }
     };
 
@@ -1198,6 +1332,28 @@ export default function PhoneCaseCustomizer() {
                             >
                                 <ShoppingCart className="mr-2 h-4 w-4" />
                                 Buy Now
+                            </Button>
+                        </div>
+
+                        <div className="flex gap-3 w-full">
+                            <Button
+                                id="save-for-later-btn"
+                                onClick={handleSaveForLater}
+                                disabled={cartLoading}
+                                variant="outline"
+                                className="flex-1 border-2 border-purple-300 text-purple-700 hover:bg-purple-50"
+                            >
+                                {cartLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Bookmark className="mr-2 h-4 w-4" />}
+                                Save for Later
+                            </Button>
+                            <Button
+                                id="add-to-cart-btn"
+                                onClick={handleAddToCart}
+                                disabled={cartLoading}
+                                className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-lg"
+                            >
+                                {cartLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
+                                {cartLoading ? 'Adding...' : 'Add to Cart'}
                             </Button>
                         </div>
                     </div>

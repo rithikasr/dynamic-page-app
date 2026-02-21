@@ -142,62 +142,98 @@ export default function AdminOrders() {
                 </div>
               </div>
 
-              <h3 className="font-bold mb-4 text-lg text-gray-800">Items</h3>
+              {/* Order source badge */}
+              <div className="flex items-center gap-2 mb-4">
+                <h3 className="font-bold text-lg text-gray-800">Items</h3>
+                {active.order_items?.some((i: any) => i.customization_details?.productId) ? (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-600 font-medium">🛒 Cart Order</span>
+                ) : active.order_items?.some((i: any) => i.customization_details?.isCustomDesign) ? (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-600 font-medium">🎨 Custom Design Order</span>
+                ) : null}
+              </div>
+
               <div className="space-y-4">
                 {active.order_items.map((item: any, idx: number) => {
-                  const designImg = item.design_image || item.designImage;
+                  // Guard against empty-string — treat "" same as null/undefined
+                  const rawDesign = item.design_image || item.designImage;
+                  const designImg = rawDesign && rawDesign.startsWith("http") ? rawDesign : null;
+                  const hasCustomization = !!item.customization_details && Object.keys(item.customization_details).length > 0;
+                  const isCustomItem = hasCustomization || !!item.customization_details?.isCustomDesign;
+
                   return (
                     <div
                       key={idx}
                       className="flex flex-col p-4 rounded-2xl bg-gradient-to-r from-[#FDF2F8] to-white space-y-3"
                     >
                       <div className="flex justify-between items-start">
-                        <div>
+                        <div className="flex-1">
                           <p className="font-semibold text-gray-800">
                             {item.product_name}
                           </p>
                           <p className="text-sm text-gray-500">
                             Qty: {item.quantity}
                           </p>
-                          {/* Show customization details if available */}
-                          {item.customization_details && (
+
+                          {/* Show all available customization details */}
+                          {hasCustomization && (
                             <div className="mt-1 text-xs text-gray-600 space-y-0.5">
                               {item.customization_details.phoneModel && (
-                                <p>Model: {item.customization_details.phoneModel}</p>
+                                <p>📱 Model: {item.customization_details.phoneModel}</p>
                               )}
                               {item.customization_details.caseColor && (
                                 <p className="flex items-center gap-1">
-                                  Color:
+                                  🎨 Case Colour:
                                   <span
                                     className="w-3 h-3 rounded-full border border-gray-300 block"
                                     style={{ backgroundColor: item.customization_details.caseColor }}
                                   />
+                                  <span>{item.customization_details.caseColor}</span>
                                 </p>
                               )}
-                              {item.customization_details.size && (
-                                <p>Size: {item.customization_details.size}</p>
+                              {item.customization_details.shirtType && (
+                                <p>👕 Style: {item.customization_details.shirtType}</p>
+                              )}
+                              {item.customization_details.shirtSize && (
+                                <p>📐 Size: {item.customization_details.shirtSize}</p>
+                              )}
+                              {item.customization_details.shirtColor && (
+                                <p className="flex items-center gap-1">
+                                  🎨 Shirt Colour:
+                                  <span
+                                    className="w-3 h-3 rounded-full border border-gray-300 block"
+                                    style={{ backgroundColor: item.customization_details.shirtColor }}
+                                  />
+                                </p>
+                              )}
+                              {/* size field from older Buy Now orders */}
+                              {item.customization_details.size && !item.customization_details.shirtSize && (
+                                <p>📐 Size: {item.customization_details.size}</p>
                               )}
                             </div>
                           )}
                         </div>
-                        <p className="font-bold text-pink-600">
+                        <p className="font-bold text-pink-600 ml-4">
                           ₹{item.unit_price}
                         </p>
                       </div>
 
-                      {/* Display Design Image */}
-                      {designImg && (
-                        <div className="mt-2 text-center">
-                          <p className="text-xs text-gray-400 mb-1 text-left">Custom Design:</p>
-                          <a href={designImg} target="_blank" rel="noopener noreferrer">
+                      {/* Display Design Image — only valid http URLs */}
+                      {designImg ? (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-400 mb-1">🖼️ Custom Design:</p>
+                          <a href={designImg} target="_blank" rel="noopener noreferrer" title="Open full size">
                             <img
                               src={designImg}
                               alt="Custom Design"
-                              className="w-full h-auto max-h-64 object-contain rounded-lg border-2 border-pink-100 bg-white"
+                              className="w-full h-auto max-h-64 object-contain rounded-lg border-2 border-pink-100 bg-white hover:border-pink-300 transition-colors"
                             />
                           </a>
                         </div>
-                      )}
+                      ) : isCustomItem ? (
+                        <p className="text-xs text-gray-400 italic">
+                          ⚠️ Design image not recorded (order placed before image tracking was enabled).
+                        </p>
+                      ) : null}
                     </div>
                   );
                 })}

@@ -18,8 +18,10 @@ import {
     Search,
     AlertCircle,
     Plus,
-    Check
+    Check,
+    Loader2
 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import Moveable from 'react-moveable';
 import { fetchProducts } from '@/api/products';
@@ -497,6 +499,81 @@ export default function TShirtCustomizer() {
 
     const selectedElementData = designElements.find(el => el.id === selectedElement);
     const selectedTypeInfo = TSHIRT_TYPES.find(t => t.id === shirtType);
+
+    const { toast } = useToast();
+    const [cartLoading, setCartLoading] = useState(false);
+
+    /** Capture the t-shirt canvas and upload the design preview. Returns upload URL or ''. */
+    const captureAndUploadDesign = async (): Promise<string> => {
+        if (!canvasRef.current) return '';
+        try {
+            setSelectedElement(null);
+            await new Promise(r => setTimeout(r, 120));
+            const { default: html2canvas } = await import('html2canvas');
+            const canvas = await html2canvas(canvasRef.current, {
+                useCORS: true,
+                scale: 2,
+                backgroundColor: null,
+            });
+            const blob = await new Promise<Blob | null>(r => canvas.toBlob(r, 'image/png'));
+            if (!blob) return '';
+
+            const formData = new FormData();
+            formData.append('image', blob, 'design.png');
+            const uploadUrl = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000'}/api/upload/design`;
+            const uploadRes = await fetch(uploadUrl, { method: 'POST', body: formData });
+            if (!uploadRes.ok) return '';
+            const uploadData = await uploadRes.json();
+            return uploadData.url || '';
+        } catch (err) {
+            console.error('Design capture/upload failed:', err);
+            return '';
+        }
+    };
+
+    const handleAddToCart = async () => {
+        const token = localStorage.getItem(STORAGE_KEYS.TOKEN);
+        if (!token) {
+            const designState = { shirtType, size, color, designElements, targetProduct };
+            localStorage.setItem('TEMP_TSHIRT_DESIGN', JSON.stringify(designState));
+            navigate('/login', { state: { from: location } });
+            return;
+        }
+        if (!targetProduct) return;
+
+        setCartLoading(true);
+        try {
+            const designImageUrl = await captureAndUploadDesign();
+            const res = await fetch(API_ENDPOINTS.CART.ADD, {
+                method: 'POST',
+                headers: getAuthHeaders(),
+                body: JSON.stringify({
+                    productId: targetProduct._id || targetProduct.id,
+                    quantity: 1,
+                    customization: {
+                        designImageUrl: designImageUrl || null,
+                        productType: 't-shirt',
+                        shirtType: TSHIRT_TYPES.find(t => t.id === shirtType)?.name || shirtType,
+                        shirtSize: size,
+                        shirtColor: color,
+                        hasCustomDesign: true
+                    }
+                })
+            });
+            const data = await res.json();
+            if (res.ok) {
+                toast({ title: '🛒 Added to Cart!', description: 'Your custom t-shirt has been saved to cart.' });
+                setShowPreview(false);
+            } else {
+                toast({ title: 'Error', description: data.message || 'Failed to add to cart', variant: 'destructive' });
+            }
+        } catch (error) {
+            console.error(error);
+            toast({ title: 'Error', description: 'Something went wrong', variant: 'destructive' });
+        } finally {
+            setCartLoading(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-blue-50 to-cyan-50">
@@ -981,6 +1058,7 @@ export default function TShirtCustomizer() {
                                 Edit More
                             </Button>
                             <Button
+                                id="buy-now-btn"
                                 onClick={handleBuy}
                                 className="flex-1 bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white shadow-lg"
                             >
@@ -988,6 +1066,15 @@ export default function TShirtCustomizer() {
                                 Buy Now
                             </Button>
                         </div>
+                        <Button
+                            id="add-to-cart-btn"
+                            onClick={handleAddToCart}
+                            disabled={cartLoading}
+                            className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white shadow-lg"
+                        >
+                            {cartLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
+                            {cartLoading ? 'Adding to Cart...' : 'Add to Cart'}
+                        </Button>
                     </div>
                 </DialogContent>
             </Dialog>

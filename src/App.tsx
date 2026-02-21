@@ -21,6 +21,7 @@ import PhoneCaseCustomizer from "@/pages/PhoneCaseCustomizer";
 import TShirtCustomizer from "@/pages/TShirtCustomizer";
 import PricingManagement from "@/pages/admin/PricingManagement";
 import ForgotPassword from "./pages/ForgotPassword";
+import Cart from "./pages/Cart";
 
 
 const queryClient = new QueryClient();
@@ -43,6 +44,7 @@ const App = () => (
             <Route path="/about" element={<AboutUs />} />
             <Route path="/contact" element={<ContactUs />} />
             <Route path="/my-orders" element={<MyOrders />} />
+            <Route path="/cart" element={<Cart />} />
             <Route path="/customize-phone-case/:productId" element={<PhoneCaseCustomizer />} />
             <Route path="/customize-phone-case" element={<PhoneCaseCustomizer />} />
             <Route path="/customize-t-shirt/:productId" element={<TShirtCustomizer />} />
